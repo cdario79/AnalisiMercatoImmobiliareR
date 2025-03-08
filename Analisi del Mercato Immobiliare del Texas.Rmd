@@ -1,0 +1,1649 @@
+---
+title: "Analisi del Mercato Immobiliare del Texas"
+author: "Dario Colombo"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE, warnign=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## Caricamento dei dati
+
+```{r, results='hide', message=FALSE, warning=FALSE, echo=FALSE}
+# Carica il pacchetto tidyverse, che include diverse librerie per la manipolazione, trasformazione e visualizzazione dei dati
+library(tidyverse)
+
+# Carica ggplot2, una libreria per la creazione di grafici avanzati e personalizzabili
+library(ggplot2)
+
+# Carica dplyr, un potente pacchetto per la manipolazione efficiente dei dati con operazioni come filtraggio, raggruppamento e aggregazione
+library(dplyr)
+
+# Carica ineq, una libreria utile per il calcolo di indicatori di disuguaglianza economica, come l'indice di Gini
+library(ineq)
+
+# Carica moments, un pacchetto per il calcolo di momenti statistici come asimmetria (skewness) e curtosi (kurtosis)
+library(moments)
+
+# Carica knitr, una libreria per la formattazione e visualizzazione tabellare dei dati
+library(knitr)
+
+# Carica kableExtra, un'estensione di knitr per migliorare la presentazione delle tabelle nei documenti
+library(kableExtra)
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Carica il dataset "realestate_texas.csv" in un dataframe chiamato df
+df <- read.csv("https://raw.githubusercontent.com/cdario79/AnalisiMercatoImmobiliareR/refs/heads/main/realestate_texas.csv") 
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Mostra le prime 10 righe in una tabella formattata
+kable(head(df, 10), caption = "**Anteprima del dataset**") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## 1. Analisi delle variabili
+
+&nbsp;
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Stampa il numero di righe e colonne formattato in HTML
+knitr::asis_output(
+  paste0("<h4><strong>Dimensioni del Dataset:</strong> ", 
+         nrow(df), " righe x ", ncol(df), " colonne</h4>")
+)
+
+# Crea una tabella con tipo di dato e alcuni esempi di valori
+glimpse_info <- data.frame(
+  Tipo = sapply(df, class),  # Tipo di dato
+  Esempi = sapply(df, function(x) paste(head(x, 3), collapse = ", "))  # Mostra i primi 3 valori
+)
+
+# Crea una tabella formattata con kable
+kable(glimpse_info, caption = "**Struttura del dataset**") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+&nbsp;
+
+### **Identificazione e descrizione delle variabili**
+
+Il dataset analizza il mercato immobiliare in diverse città del Texas, includendo informazioni sulle vendite, il valore delle transazioni e la disponibilità degli annunci. Le variabili presenti sono:
+
+-   **city (qualitativa nominale):** indica la città di riferimento per le vendite immobiliari. Essendo una variabile qualitativa, permette di confrontare l’andamento del mercato tra le diverse località.\
+-   **year (quantitativa continua da trattare come qualitativa ordinale):** anno di registrazione dei dati, utile per individuare trend di lungo periodo.\
+-   **month (qualitativa nominale - ciclica - ma codificata in numeri):** mese di registrazione dei dati, utilizzato per analizzare la stagionalità delle vendite.\
+-   **sales (quantitativa discreta):** numero totale di transazioni immobiliari concluse.\
+-   **volume (quantitativa continua):** valore totale delle vendite, espresso in milioni di dollari.\
+-   **median_price (quantitativa continua):** prezzo mediano degli immobili venduti, utile per valutare l’andamento del mercato.\
+-   **listings (quantitativa discreta):** numero di annunci immobiliari attivi, indicativo della disponibilità sul mercato.\
+-   **months_inventory (quantitativa continua):** stima in mesi del tempo necessario per esaurire le inserzioni disponibili, utile per misurare il bilanciamento tra domanda e offerta.
+
+*Le quantitative continue sono tutte su scala di rapporti*
+
+&nbsp;
+
+### **Gestione delle variabili temporali**
+
+Le variabili **year** e **month** forniscono la dimensione temporale del dataset:
+
+-   **year** è trattato come variabile numerica discreta per esaminare trend di lungo periodo nelle vendite e nei prezzi. Questo perché l'anno rappresenta una scala temporale ordinata e numerica (ad es. 2010, 2011, 2012...), consentendo di analizzare l'evoluzione del mercato immobiliare nel tempo. Trattarlo come numerico permette di costruire serie temporali, calcolare variazioni annuali e individuare tendenze di crescita o contrazione del mercato.
+
+-   **month** è considerato una variabile categorica per individuare pattern stagionali nel mercato immobiliare. Sebbene numericamente codificata (1-12), la sua interpretazione è ciclica e non continua: ad esempio, dicembre (12) e gennaio (1) sono mesi consecutivi nel calendario, ma numericamente sembrerebbero distanti. Per questo motivo, trattarlo come una categoria permette di analizzare le fluttuazioni stagionali e confrontare l’andamento del mercato nei diversi periodi dell'anno, senza interpretazioni errate dovute alla sua numerazione.
+
+&nbsp;
+
+### **Approccio analitico per ciascuna variabile**
+
+-   **Distribuzione geografica**: *city* sarà utilizzata per confrontare vendite, prezzi e volumi tra diverse città.\
+-   **Tendenze storiche**: *year* e *month* permetteranno di analizzare evoluzioni nel tempo e stagionalità.\
+-   **Performance di mercato**: *sales*, *volume* e *median_price* saranno utilizzate per valutare l’andamento delle vendite e l’apprezzamento degli immobili.\
+-   **Dinamiche dell’offerta**: *listings* e *months_inventory* aiuteranno a comprendere l’equilibrio tra domanda e offerta e la velocità di assorbimento del mercato.
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## 2. Indici di posizione, variabilità e forma
+
+&nbsp;
+
+### **Variabili su cui calcolare indici di posizione, variabilità e forma**
+
+*(Numeriche continue o discrete con molti valori diversi)*
+
+-   `sales`
+-   `volume`
+-   `median_price`
+-   `listings`
+-   `months_inventory`
+
+```{r, message=FALSE, warnign=FALSE}
+# Seleziona le colonne da analizzare
+# Viene creato un vettore contenente i nomi delle colonne che verranno analizzate
+colonne_selezionate <- c("sales", "volume", "median_price", "listings", "months_inventory")
+
+# Filtra solo le colonne selezionate (rimuovendo eventuali NA)
+# - `select(all_of(colonne_selezionate))`: seleziona solo le colonne specificate
+# - `%>% drop_na()`: rimuove eventuali righe con valori mancanti in almeno una delle colonne selezionate
+df_selezionate <- df %>% select(all_of(colonne_selezionate)) %>% drop_na()
+
+# Rinomina le colonne per una migliore leggibilità
+# Creiamo un vettore di mappatura per assegnare nomi più descrittivi alle colonne
+colonne_rename <- c(
+  "sales" = "sales (unità)",
+  "volume" = "volume (milioni di dollari)",
+  "median_price" = "median_price (dollari)",
+  "listings" = "listings (unità)",
+  "months_inventory" = "months_inventory (mesi)"
+)
+
+# Applica la rinominazione delle colonne
+# - `rename_with()` modifica i nomi delle colonne nel dataset.
+# - `~ colonne_rename[.x]` usa una funzione anonima per sostituire i nomi originali con quelli definiti nel vettore colonne_rename
+df_selezionate <- rename_with(df_selezionate, ~ colonne_rename[.x])
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Creazione tabella Indici di Posizione
+tabella_posizione <- data.frame(
+  Indice = c("Media", "Mediana", "Quartili", "Minimo", "Massimo"),
+  `Descrizione` = c(
+    "Quando i dati sono simmetrici e senza outlier",
+    "Quando i dati sono asimmetrici o con outlier",
+    "Per analizzare la distribuzione dei dati",
+    "Indica il valore più piccolo osservato",
+    "Indica il valore più grande osservato"
+  )
+)
+
+# Stampa tabella con bordi e larghezza colonne al 50%
+kable(tabella_posizione, format = "html", caption = "**Indici di posizione**", align = "l") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover", "bordered")) %>%
+  column_spec(1, width = "50%") %>%
+  column_spec(2, width = "50%") %>%
+  footnote(general = "Il minimo e il massimo sono considerati indici di posizione perché indicano rispettivamente il valore più piccolo e il valore più grande osservato nella distribuzione. Vengono anche utilizzati per calcolare il range (Massimo - Minimo), che misura l’ampiezza della distribuzione che rientra tra gli indici di variabilità. Qui li includiamo tra gli indici di posizione perché forniscono informazioni fondamentali sulla localizzazione dei valori estremi della distribuzione.")
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Impostiamo l'opzione per evitare la notazione esponenziale nei numeri
+options(scipen = 999)
+
+# Calcoliamo gli indici di posizione per tutte le variabili selezionate
+posizione <- df_selezionate %>%
+  summarise(across(everything(), list(
+    Min = ~round(min(.x, na.rm = TRUE), 2),       # Calcola il valore minimo ignorando i valori NA e arrotonda a 2 decimali
+    Media = ~round(mean(.x, na.rm = TRUE), 2),    # Calcola la media aritmetica ignorando i valori NA e arrotonda a 2 decimali
+    Max = ~round(max(.x, na.rm = TRUE), 2),       # Calcola il valore massimo ignorando i valori NA e arrotonda a 2 decimali
+    Q1 = ~round(quantile(.x, probs = 0.25, na.rm = TRUE), 2), # Primo quartile (25° percentile), arrotondato a 2 decimali
+    Mediana = ~round(median(.x, na.rm = TRUE), 2), # Mediana (50° percentile, valore centrale), arrotondata a 2 decimali
+    Q3 = ~round(quantile(.x, probs = 0.75, na.rm = TRUE), 2)  # Terzo quartile (75° percentile), arrotondato a 2 decimali
+  )))
+
+# Riorganizziamo il dataframe per rendere i dati più leggibili e strutturati
+posizione <- posizione %>%
+  pivot_longer(
+    cols = everything(),                     # Seleziona tutte le colonne
+    names_to = c("Variabile", "Misura"),      # Divide il nome delle colonne in due parti: Variabile e Misura
+    names_pattern = "(.*)_(.*)"               # Usa una regex per separare il nome della variabile dal tipo di misura
+  ) %>%
+  pivot_wider(
+    names_from = "Variabile",                 # Trasforma i nomi delle variabili in colonne
+    values_from = "value"                      # Riempie le celle con i valori delle statistiche calcolate
+  )
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Verifica che la tabella non sia vuota
+if(nrow(posizione) > 0) {
+  kable(posizione, digits = 3, caption = "**Calcolo indici di posizione**") %>%
+    kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover", "bordered"))
+} else {
+  print("Nessun dato disponibile per gli indici di posizione.")
+}
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Creazione tabella Indici di Variabilità
+tabella_variabilita <- data.frame(
+  Indice = c("Deviazione standard", "Varianza", "Coefficiente di variazione", "Range", "Interquartile Range (IQR)"),
+  Descrizione = c(
+    "Misura quanto i valori si discostano dalla media",
+    "La media dei quadrati delle differenze dalla media",
+    "Deviazione standard divisa per la media, utile per confrontare variabili con unità diverse",
+    "Differenza tra il valore massimo e minimo della distribuzione",
+    "Differenza tra il 3° e il 1° quartile, utile per eliminare outlier"
+  )
+)
+
+# Stampa tabella con bordi e larghezza colonne al 50%
+kable(tabella_variabilita, format = "html", caption = "**Indici di variabilità**", align = "l") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover", "bordered")) %>%
+  column_spec(1, width = "50%") %>%
+  column_spec(2, width = "50%")
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Impostiamo l'opzione per evitare la notazione esponenziale nei numeri
+options(scipen = 999)
+
+# Calcoliamo gli indici di variabilità per tutte le variabili selezionate
+variabilita <- df_selezionate %>%
+  summarise(across(everything(), list(
+    "Deviazione Std" = ~round(sd(.x, na.rm = TRUE), 2),  # Calcola la deviazione standard (dispersione rispetto alla media) e arrotonda a 2 decimali
+    "Varianza" = ~round(var(.x, na.rm = TRUE), 2),       # Calcola la varianza (deviazione standard al quadrato) e arrotonda a 2 decimali
+    "Range" = ~round(max(.x, na.rm = TRUE) - min(.x, na.rm = TRUE), 2), # Differenza tra il valore massimo e minimo, arrotondato a 2 decimali
+    "Interquartile Range (IQR)" = ~round(IQR(.x, na.rm = TRUE), 2), # Differenza tra Q3 (75° percentile) e Q1 (25° percentile), arrotondato a 2 decimali
+    "Coefficiente di Variazione (CV)" = ~round(sd(.x, na.rm = TRUE) / mean(.x, na.rm = TRUE) * 100, 2) # CV in percentuale, arrotondato a 2 decimali
+  )))
+
+# Riorganizziamo il dataframe per migliorare la leggibilità dei risultati
+variabilita <- variabilita %>%
+  pivot_longer(
+    cols = everything(),                     # Seleziona tutte le colonne
+    names_to = c("Variabile", "Misura"),      # Divide il nome delle colonne in due parti: Variabile e Misura
+    names_pattern = "(.*)_(.*)"               # Usa una regex per separare il nome della variabile dal tipo di misura
+  ) %>%
+  pivot_wider(
+    names_from = "Variabile",                 # Trasforma i nomi delle variabili in colonne
+    values_from = "value"                      # Riempie le celle con i valori delle statistiche calcolate
+  )
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Verifica che la tabella non sia vuota
+if(nrow(variabilita) > 0) {
+  kable(variabilita, digits = 3, caption = "**Calcolo indici di variabilità**") %>%
+    kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover", "bordered"))
+} else {
+  print("Nessun dato disponibile per gli indici di variabilità.")
+}
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Creazione tabella Indici di Forma
+tabella_forma <- data.frame(
+  Indice = c("Asimmetria (Skewness)", "Curtosi (Kurtosis)"),
+  Descrizione = c(
+    "Misura se la distribuzione è sbilanciata verso destra o sinistra",
+    "Indica la concentrazione dei dati attorno alla media (distribuzione piatta o appuntita)"
+  )
+)
+
+# Stampa tabella con bordi e larghezza colonne al 50%
+kable(tabella_forma, format = "html", caption = "**Indici di forma**", align = "l") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover", "bordered")) %>%
+  column_spec(1, width = "50%") %>%
+  column_spec(2, width = "50%")
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Impostiamo l'opzione per evitare la notazione esponenziale nei numeri
+options(scipen = 999)
+
+# Calcoliamo gli indici di forma per tutte le variabili selezionate
+forma <- df_selezionate %>%
+  summarise(across(everything(), list(
+    "Asimmetria (Skewness)" = ~round(skewness(.x, na.rm = TRUE), 2),  # Misura il grado di asimmetria della distribuzione, arrotondata a 2 decimali
+    "Curtosi (Kurtosis)" = ~round(kurtosis(.x, na.rm = TRUE), 2)       # Misura l'appiattimento della distribuzione, arrotondata a 2 decimali
+  )))
+
+# Riorganizziamo il dataframe per migliorare la leggibilità dei risultati
+forma <- forma %>%
+  pivot_longer(
+    cols = everything(),                     # Seleziona tutte le colonne
+    names_to = c("Variabile", "Misura"),      # Divide il nome delle colonne in due parti: Variabile e Misura
+    names_pattern = "(.*)_(.*)"               # Usa una regex per separare il nome della variabile dal tipo di misura
+  ) %>%
+  pivot_wider(
+    names_from = "Variabile",                 # Trasforma i nomi delle variabili in colonne
+    values_from = "value"                      # Riempie le celle con i valori delle statistiche calcolate
+  )
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Verifica che la tabella non sia vuota
+if(nrow(forma) > 0) {
+  kable(forma, digits = 3, caption = "**Calcolo indici di forma**") %>%
+    kable_styling(full_width = FALSE, bootstrap_options = c("striped", "hover", "bordered"))
+} else {
+  print("Nessun dato disponibile per gli indici di forma.")
+}
+```
+
+&nbsp;
+
+### Variabili su cui creare una distribuzione di frequenza
+
+*(Categoriche o discrete con pochi valori distinti)*
+
+-   `city`
+-   `year`
+-   `month`
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione della distribuzione di frequenza per la variabile "city"
+city_freq <- df %>%
+  count(city, name = "Frequency") %>%  # Conta il numero di occorrenze per ogni città
+  rename(Frequenza = Frequency) %>%  # Rinomina la colonna "Frequency" in "Frequenza"
+  arrange(desc(Frequenza))  # Ordina le città in ordine decrescente in base alla frequenza
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+kable(city_freq, caption = "**Distribuzione di frequenza per \"city\"**", align = c("l", "r")) %>%
+  kable_styling(full_width = TRUE, position = "center")
+```
+
+```{r, message=FALSE, warnign=FALSE}
+year_freq <- df %>%
+  count(year, name = "Frequency") %>%  # Conta il numero di occorrenze per ogni anno
+  rename(Frequenza = Frequency) %>%  # Rinomina la colonna "Frequency" in "Frequenza"
+  arrange(desc(Frequenza))  # Ordina gli anni in ordine decrescente in base alla frequenza
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+kable(year_freq, caption = "**Distribuzione di frequenza per \"year\"**", align = c("l", "r")) %>%
+  kable_styling(full_width = TRUE, position = "center")
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione della distribuzione di frequenza per la variabile "month"
+month_freq <- df %>%
+  count(month, name = "Frequency") %>%  # Conta il numero di occorrenze per ogni mese
+  rename(Frequenza = Frequency) %>%  # Rinomina la colonna "Frequency" in "Frequenza"
+  arrange(month)  # Ordina i mesi in ordine crescente
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+kable(month_freq, caption = "**Distribuzione di frequenza per \"month\"**", align = c("l", "r")) %>%
+  kable_styling(full_width = TRUE, position = "center")
+```
+
+&nbsp;
+
+### Analisi degli indici di posizione
+
+-   **Sales (unità):** Il numero minimo di vendite è di **79**, mentre il massimo arriva a **423**, con una mediana di **175,5**. Questo suggerisce che il mercato immobiliare presenta una forte variabilità, con alcune città che registrano un volume di vendite molto alto rispetto ad altre.
+-   **Volume (milioni di dollari):** Il valore totale delle vendite varia tra **8,17 milioni di dollari** e **83,55 milioni di dollari**, con una media di **31,01 milioni**. La distribuzione mostra una distribuzione ampia suggerendo che alcune città generano un fatturato molto più elevato rispetto ad altre.
+-   **Median Price (dollari):** Il prezzo mediano delle case va da **73.800 dollari** a **180.000 dollari**, con una mediana di **134.500 dollari**. Il primo quartile è **117.300 dollari**, il che suggerisce che una buona parte del mercato si colloca sotto questa soglia, mentre il terzo quartile è **150.050 dollari**, indicando una maggiore concentrazione tra 117.300 e 150.050 dollari.
+-   **Listings (unità):** Il numero di annunci varia notevolmente da **743** a **3.296**, con una mediana di **1.618,50**. Questo potrebbe indicare un'elevata stagionalità o un mercato in cui alcune città pubblicano molte più offerte rispetto ad altre.
+-   **Months Inventory (mesi):** Il tempo medio necessario per vendere tutte le inserzioni disponibili oscilla tra **3,4 mesi** e **14,9 mesi**, con una mediana di **8,95 mesi**. Questo indica una discreta eterogeneità nel mercato, con alcune zone che vedono un rapido turnover e altre con tempi di vendita più lunghi.
+
+&nbsp;
+
+### Analisi degli indici di variabilità
+
+-   **Sales e Volume:** La deviazione standard è relativamente alta per entrambi i valori (**79,65 per le vendite e 16,65 per il volume**), suggerendo una forte dispersione attorno alla media.
+-   **Median Price:** La varianza del prezzo mediano (**513.57 milioni di dollari**) e la sua deviazione standard (**22.662,15 dollari**) indicano una variabilità significativa nei prezzi delle case.
+-   **Listings:** Anche in questo caso, la varianza è elevata, suggerendo grandi differenze nel numero di annunci attivi tra le città.
+-   **Months Inventory:** L'inventario mostra una moderata dispersione, con una deviazione standard di **2,3 mesi**, indicando che il tempo necessario per vendere le case varia ma non in modo eccessivo.
+
+&nbsp;
+
+### Analisi degli indici di forma
+
+-   **Asimmetria (Skewness):** Il **volume delle vendite** e il **numero di vendite** presentano una leggera **asimmetria positiva**, indicando la presenza di alcuni valori molto elevati che tirano la distribuzione verso destra. Il **prezzo mediano**, invece, ha una leggera **asimmetria negativa (-0,36)**, suggerendo una distribuzione leggermente inclinata verso sinistra.
+-   **Curtosi (Kurtosis):** Tutte le variabili hanno un valore di curtosi vicino a **3**, il che indica una distribuzione normale o leggermente leptocurtica (picchi più pronunciati rispetto a una distribuzione normale).
+
+&nbsp;
+
+### Analisi delle distribuzioni di frequenza
+
+-   **City:** I dati sono equamente distribuiti tra quattro città, ognuna con **60 osservazioni**. Questo suggerisce che l'analisi delle vendite può essere fatta senza preoccuparsi di squilibri nei dati.
+-   **Year:** Le osservazioni sono distribuite equamente su **5 anni (2010-2014)** con **48 osservazioni per anno**, permettendo un'analisi temporale coerente.
+-   **Month:** Ogni mese ha **20 osservazioni**, garantendo una buona rappresentatività per l'analisi stagionale.
+
+&nbsp;
+
+### Conclusioni generali
+
+-   **Elevata variabilità** nelle vendite e nel volume delle transazioni, con alcune città che mostrano valori estremi.
+-   **Prezzo mediano stabile**, con una leggera asimmetria negativa e una variabilità relativamente contenuta.
+-   **Disparità nelle inserzioni**, con alcune città che hanno molti più annunci di altre.
+-   **Turnover del mercato immobiliare eterogeneo**, con alcune aree che vedono una vendita rapida e altre con inventari che richiedono più tempo per esaurirsi.
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## 3. Identificazione delle variabili con maggiore variabilità e asimmetria
+
+&nbsp;
+
+### Variabilità
+Per identificare la variabile con la maggiore variabilità, possiamo osservare il **Coefficiente di Variazione (CV)**, che normalizza la dispersione rispetto alla media, permettendo un confronto diretto tra variabili con scale diverse. 
+
+Analizzando gli indici di variabilità notiamo i seguenti valori di CV:
+
+- **Volume delle vendite**: 53,71%
+- **Numero di vendite (sales)**: 41,42%
+- **Listings (annunci)**: 43,31%
+- **Months inventory**: 25,06%
+- **Prezzo mediano (median_price)**: 17,08%
+
+Il seguente grafico aiuta a visualizzare la dispersione del volume delle vendite e l’eventuale presenza di **outlier**:
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+ggplot(df, aes(x = "", y = volume)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.7) +
+  labs(title = "Boxplot del volume delle vendite", y = "Volume delle vendite (Milioni di dollari)") +
+  theme_minimal()
+```
+
+**Conclusione**: La variabile con la maggiore variabilità è **il volume delle vendite**, con un CV del **53,71%**. Questo indica che questa variabile è soggetta a una variazione più ampia rispetto alla sua media rispetto alle altre.
+
+&nbsp;
+
+### Asimmetria
+Per valutare la distribuzione più asimmetrica, possiamo guardare il valore di **Skewness (Asimmetria)**:
+
+- **Volume delle vendite**: 0,88
+- **Numero di vendite (sales)**: 0,72
+- **Listings**: 0,65
+- **Months inventory**: 0,04
+- **Prezzo mediano**: -0,36
+
+Il grafico sottostante mostra come il volume delle vendite abbia una coda più lunga a destra, indicando un’asimmetria positiva:
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+ggplot(df, aes(x = volume)) +
+  geom_density(fill = "steelblue", alpha = 0.8) +
+  labs(title = "Densità del volume delle vendite", x = "Volume delle vendite (Milioni di dollari)", y = "Densità") +
+  theme_minimal()
+```
+
+**Conclusione**: La variabile con la distribuzione più asimmetrica è **il volume delle vendite (skewness = 0,88)**. Un valore positivo di asimmetria indica una distribuzione con una coda più lunga verso destra, suggerendo che ci sono alcune vendite con valori eccezionalmente alti rispetto alla media.
+
+&nbsp;
+
+### Considerazioni statistiche
+
+- **Elevata variabilità del volume delle vendite:** Il CV elevato suggerisce che il valore totale delle vendite presenta una dispersione molto ampia, probabilmente influenzata da vendite eccezionalmente alte in determinate città o mesi.
+- **Asimmetria positiva del volume delle vendite:** L'asimmetria positiva indica che la distribuzione è inclinata a destra, con alcune transazioni immobiliari che raggiungono valori estremamente elevati rispetto alla media.
+
+&nbsp;
+
+### Implicazioni per l’analisi del mercato
+
+- La forte variabilità del volume delle vendite indica che il mercato è molto dinamico e dipende fortemente da fattori esterni, come la stagionalità o il posizionamento degli annunci.
+- L’asimmetria positiva suggerisce la presenza di picchi di vendita particolarmente elevati in alcuni periodi o città, il che può indicare opportunità di mercato per segmenti di fascia alta.
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## 4. Creazione di classi per una variabile quantitativa
+
+&nbsp;
+
+**Opzione scelta:** sales, poiché rappresenta il numero di vendite ed è più utile per valutare la distribuzione del mercato immobiliare.
+
+```{r, message=FALSE, warnign=FALSE}
+# Selezionare la variabile sales
+sales_data <- df$sales[!is.na(df$sales)]
+
+# Definire il numero di classi con la regola di Sturges
+# Questo metodo determina un numero ottimale di classi basato sulla dimensione del dataset,
+# evitando una suddivisione eccessiva o insufficiente dei dati.
+num_bins <- ceiling(1 + log2(length(sales_data)))
+
+# Creare i limiti delle classi arrotondati
+# L'arrotondamento migliora la leggibilità senza alterare la distribuzione dei dati.
+raw_breaks <- seq(min(sales_data), max(sales_data), length.out = num_bins + 1)
+rounded_breaks <- unique(round(raw_breaks))  # Arrotondare i limiti
+
+# Assicurarsi che ci siano abbastanza classi dopo l'arrotondamento
+if (length(rounded_breaks) < num_bins + 1) {
+  rounded_breaks <- seq(min(sales_data), max(sales_data), length.out = num_bins + 1)
+  rounded_breaks <- unique(round(rounded_breaks))
+}
+
+# Creare etichette delle classi con valori interi
+labels <- paste(head(rounded_breaks, -1), tail(rounded_breaks, -1), sep="-")
+
+# Classificare i dati con i nuovi limiti interi
+sales_classes <- cut(sales_data, breaks = rounded_breaks, labels = labels, include.lowest = TRUE)
+
+# Creare la tabella di distribuzione di frequenze
+freq_table <- as.data.frame(table(sales_classes))
+colnames(freq_table) <- c("Classe", "Frequenza")
+
+# Aggiungere la frequenza relativa
+freq_table$Frequenza_Relativa <- round(freq_table$Frequenza / sum(freq_table$Frequenza), 4)
+```
+
+```{r,echo=FALSE, message=FALSE, warnign=FALSE}
+# Visualizzare la tabella
+kable(freq_table, caption = "**Distribuzione di frequenze delle vendite (Classi arrotondate)**", align = c("l", "r", "r")) %>%
+  kable_styling(full_width = TRUE, position = "center", bootstrap_options = c("striped", "hover"))
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico a barre 
+ggplot(freq_table, aes(x = Classe, y = Frequenza)) +  
+  geom_bar(stat = "identity", fill = "steelblue") +  # Imposta un colore fisso per le barre
+  theme_classic() +  # Tema con sfondo bianco e assi puliti
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Ruota le etichette dell'asse X di 45° per migliorare la leggibilità
+    plot.title = element_text(hjust = 0.5, face = "bold"),  # Centra il titolo e lo rende in grassetto
+    legend.position = "none"  # Nasconde la legenda perché il colore è fisso
+  ) +
+  labs(
+    title = "Distribuzione delle vendite per classe",  # Titolo del grafico
+    x = "Classi di vendite",  # Etichetta dell'asse X
+    y = "Frequenza"  # Etichetta dell'asse Y
+  )
+
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Calcolo dell'indice di Gini
+gini.index <- function(x){
+  ni = table(x)
+  fi = ni/length(x)
+  fi2 = fi^2
+  J = length(table(x))
+  
+  gini = 1-sum(fi2)
+  gini.norm = gini/((J-1)/J)
+  
+  return(gini.norm)
+}
+
+gini_index <- gini.index(sales_classes)
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Creare una tabella con l'indice di Gini
+gini_table <- data.frame("Gini" = round(gini_index, 4))
+
+# Visualizzare l'indice di Gini in tabella formattata
+kable(gini_table, caption = "**Indice di eterogeneità Gini**", align = "c") %>%
+  kable_styling(full_width = TRUE, position = "center", bootstrap_options = c("striped", "hover"))
+```
+&nbsp;
+
+### Osservazione della Distribuzione delle Vendite
+Dalla tabella di frequenze e dal relativo grafico a barre possiamo fare le seguenti considerazioni:
+
+#### Distribuzione delle vendite
+  - La maggior parte delle osservazioni si concentra nelle **prime tre classi** (79-117, 117-155, 155-194), che insieme rappresentano una **porzione significativa del totale delle vendite**.
+  - Le classi con valori più alti (oltre 270 vendite) hanno frequenze significativamente inferiori, indicando che vendite molto elevate sono meno comuni.
+  
+#### Tendenza decrescente della distribuzione
+  - Si nota una **diminuzione progressiva** delle frequenze man mano che si sale verso classi più alte.
+  - Questo suggerisce che, nel mercato immobiliare texano, la maggior parte delle transazioni si concentra su volumi di vendita relativamente bassi o medi, mentre livelli di vendita molto elevati risultano meno frequenti.
+
+#### Dati più granulari sulla distribuzione
+  - La **frequenza relativa** conferma questa tendenza: le prime tre classi coprono circa **58% delle vendite totali**, mentre le ultime quattro rappresentano solo una piccola parte del mercato.
+
+&nbsp;
+
+### Interpretazione dell’Indice di Gini
+L'indice di eterogeneità di **Gini = 0.2311** indica una **moderata disuguaglianza** nella distribuzione delle vendite.  
+
+- **Se il valore fosse vicino a 0**, significherebbe che le vendite sono distribuite in modo uniforme tra tutte le classi.  
+- **Se fosse vicino a 1**, significherebbe che poche classi concentrano la maggior parte delle vendite.  
+- Il valore **0.2311** indica che c’è una certa **disparità**, ma non troppo accentuata:  
+  - Esistono situazioni in cui i volumi di vendita sono significativamente superiori alla media.  
+  - Tuttavia, il mercato è relativamente distribuito con una maggioranza di vendite **nella fascia bassa e media**.
+
+&nbsp;
+
+### Conclusioni
+#### Mercato dominato da vendite medio-basse
+  - La maggior parte delle transazioni rientra in un intervallo di vendite compreso **tra 79 e 200**, mentre solo una quota ridotta raggiunge valori più elevati.
+  
+#### Segmentazione del mercato
+  - Questo suggerisce che il mercato potrebbe essere composto principalmente da aree con **domanda media o bassa**, mentre solo poche zone vedono volumi di vendita molto elevati.
+
+&nbsp;
+
+---
+
+&nbsp;
+  
+## 5. Calcolo della probabilità  
+
+&nbsp;
+
+### Approccio e calcolo delle probabilità in R
+Per calcolare queste probabilità, utilizziamo il metodo della **frequenza relativa** nel linguaggio R, sfruttando la funzione mean(). Questo approccio è possibile perché in R le operazioni logiche restituiscono valori booleani (TRUE o FALSE), e la loro media corrisponde alla proporzione di righe che soddisfano la condizione.
+  
+```{r, message=FALSE, warnign=FALSE}
+# Probabilità che una riga riporti la città "Beaumont"
+prob_beaumont <- mean(df$city == "Beaumont")
+```  
+
+**Spiegazione:**
+
+- ```df$city == "Beaumont"``` restituisce un vettore di valori TRUE e FALSE, indicando se ogni riga soddisfa la condizione.
+- ```mean()``` calcola la proporzione di TRUE rispetto al totale delle righe.
+
+```{r, message=FALSE, warnign=FALSE}
+# Probabilità che una riga riporti il mese di Luglio (mese == 7)
+prob_july <- mean(df$month == 7)
+```  
+
+**Spiegazione:**
+
+- ```df$month == 7``` crea un vettore logico con TRUE per le righe che hanno Luglio come mese e FALSE per le altre.
+- ```mean()``` restituisce la frazione di TRUE, ovvero la probabilità cercata.
+
+```{r, message=FALSE, warnign=FALSE}
+# Probabilità che una riga riporti il mese di Dicembre 2012 (mese == 12 e anno == 2012)
+prob_december_2012 <- mean(df$month == 12 & df$year == 2012)
+```  
+
+**Spiegazione:**
+
+- ```df$month == 12 & df$year == 2012``` verifica simultaneamente entrambe le condizioni.
+- Il vettore logico risultante avrà TRUE solo per le righe che soddisfano entrambe le condizioni.
+- ```mean()``` calcola la proporzione di queste righe rispetto al totale.
+
+&nbsp;
+
+### Risultato del calcolo delle probabilità
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE} 
+# Creare un dataframe con i risultati
+probabilities <- data.frame(
+  "Evento" = c("Città = Beaumont", "Mese = Luglio", "Mese = Dicembre 2012"),
+  "Probabilità" = c(prob_beaumont, prob_july, prob_december_2012)
+)
+
+# Stampare la tabella formattata
+kable(probabilities, format = "markdown", digits = 4) %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```  
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## 6. Creazione di nuove variabili
+
+&nbsp;
+
+```{r, message=FALSE, warnign=FALSE} 
+# Creare una copia del dataframe per evitare di sovrascrivere i dati originali
+df_new <- df
+
+# Creare la colonna 'prezzo_medio' come volume totale delle vendite diviso per il numero di vendite
+df_new$prezzo_medio <- (df_new$volume * 1e6) / df_new$sales
+
+# Creare la colonna 'efficacia_annunci' come il rapporto tra vendite e numero di annunci attivi
+df_new$efficacia_annunci <- df_new$sales / df_new$listings
+```
+  
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Mostra le prime 10 righe in una tabella formattata
+kable(head(df_new), caption = "**Anteprima del dataset con le nuove colonne**") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```  
+&nbsp;
+
+### Prezzo medio degli immobili
+Il **prezzo medio** è stato calcolato dividendo il volume totale delle vendite per il numero di vendite.
+
+- Il prezzo medio differisce dal prezzo mediano perché è influenzato da valori estremi (case molto costose o molto economiche).
+- La variabilità tra città e periodi indica le fluttuazioni del mercato.
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un riepilogo statistico del prezzo medio per città
+prezzo_medio_summary <- df_new %>%  # Prende il dataframe df_new e applica operazioni in sequenza
+  group_by(city) %>%  # Raggruppa i dati in base alla colonna 'city'
+  summarise(  # Calcola le statistiche per ogni città
+    Media = round(mean(prezzo_medio, na.rm = TRUE), 2),  # Media dei prezzi medi, ignorando i valori NA, arrotondata a 2 decimali
+    Mediana = round(median(prezzo_medio, na.rm = TRUE), 2),  # Mediana dei prezzi medi, ignorando i valori NA
+    Deviazione_Std = round(sd(prezzo_medio, na.rm = TRUE), 2),  # Deviazione standard dei prezzi medi
+    Min = round(min(prezzo_medio, na.rm = TRUE), 2),  # Valore minimo del prezzo medio
+    Max = round(max(prezzo_medio, na.rm = TRUE), 2)  # Valore massimo del prezzo medio
+  )
+```
+
+```{r,echo=FALSE, message=FALSE, warnign=FALSE}
+# Visualizzare la tabella
+kable(prezzo_medio_summary, caption = "**Riepilogo del prezzo medio per città**") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del boxplot per la distribuzione del prezzo medio per città 
+ggplot(df_new, aes(x = reorder(city, prezzo_medio, median), y = prezzo_medio)) +
+  geom_boxplot(fill = "steelblue", color = "black") +  # Imposta un colore fisso per il riempimento e bordo nero
+  coord_flip() +  # Ruota il grafico per una migliore leggibilità
+  labs(
+    title = "Distribuzione del prezzo medio per città",  # Titolo del grafico
+    x = "Città",  # Etichetta asse X
+    y = "Prezzo medio ($)"  # Etichetta asse Y
+  ) +
+  theme_minimal() +  # Utilizza un tema minimalista per rendere il grafico più pulito
+  theme(legend.position = "none")  # Nasconde la legenda
+```
+
+#### Differenze nei prezzi medi tra città
+
+- **Bryan-College Station** ha il prezzo medio più alto (**183.534,3 dollari**), seguito da **Tyler** (**167.676,8 dolari**).  
+  - Questo suggerisce che in queste città gli immobili tendono ad avere un valore più elevato.  
+- **Beaumont** (**146.640,4 dollari**) e **Wichita Falls** (**119.430,0 dollari**) hanno prezzi medi più bassi.  
+  - Ciò potrebbe indicare una minore domanda o un'offerta di immobili a costo inferiore.
+
+#### Distribuzione e variabilità dei prezzi
+
+- **Bryan-College Station** mostra il valore massimo più alto (**213.233,9 dollari**) e una **deviazione standard elevata (15.149,35 dollari)**, indicando una maggiore variabilità dei prezzi degli immobili.
+- **Wichita Falls** ha il valore minimo più basso (**97.010,2 dollari**) e un intervallo di prezzo più contenuto rispetto alle altre città.
+- Il **boxplot conferma queste differenze**, evidenziando che Bryan-College Station e Tyler hanno prezzi medi più alti e una maggiore dispersione rispetto a Beaumont e Wichita Falls.
+
+#### Outlier e distribuzione dei prezzi
+
+- Il **boxplot mostra alcuni outlier**, specialmente per **Beaumont e Wichita Falls**, suggerendo la presenza di immobili con prezzi particolarmente bassi o alti rispetto alla media della città.
+- In **Bryan-College Station e Tyler**, la distribuzione è più ampia, indicando la presenza di immobili di fascia alta.
+
+#### Conclusioni
+- **Mercati con immobili più costosi:** Bryan-College Station e Tyler hanno prezzi medi più elevati, indicando una possibile domanda più alta o un mercato più competitivo.  
+- **Mercati più accessibili:** Beaumont e Wichita Falls hanno prezzi medi più bassi, il che potrebbe renderli più attrattivi per acquirenti con budget inferiore.  
+- **Variabilità nel mercato:** La dispersione dei dati indica che alcuni mercati hanno prezzi molto diversificati, mentre altri (es. Wichita Falls) sono più omogenei.  
+
+&nbsp;
+
+### Efficacia degli annunci di vendita
+L’**efficacia degli annunci** è calcolata come il rapporto tra il numero di vendite e il numero di annunci attivi.
+
+- Un valore alto indica un mercato attivo con domanda elevata.
+- Un valore basso suggerisce un eccesso di offerta o una domanda debole.
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un riepilogo statistico sull'efficacia degli annunci per città
+efficacia_summary <- df_new %>%  # Prende il dataframe df_new e applica operazioni in sequenza
+  group_by(city) %>%  # Raggruppa i dati per città
+  summarise(  # Calcola le statistiche per ogni città
+    Media = round(mean(efficacia_annunci, na.rm = TRUE), 2),  # Calcola la media, ignorando i valori NA e arrotondando a 2 decimali
+    Mediana = round(median(efficacia_annunci, na.rm = TRUE), 2),  # Calcola la mediana, ignorando i valori NA
+    Deviazione_Std = round(sd(efficacia_annunci, na.rm = TRUE), 2),  # Calcola la deviazione standard
+    Min = round(min(efficacia_annunci, na.rm = TRUE), 2),  # Trova il valore minimo
+    Max = round(max(efficacia_annunci, na.rm = TRUE), 2)  # Trova il valore massimo
+  )
+```
+
+```{r,echo=FALSE, message=FALSE, warnign=FALSE}
+# Visualizzare la tabella
+kable(efficacia_summary, caption = "**Riepilogo dell'efficacia media per città**") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Calcolo dell'efficacia media degli annunci per città
+efficacia_media <- df_new %>%  # Prende il dataframe df_new e applica operazioni in sequenza
+  group_by(city) %>%  # Raggruppa i dati per città
+  summarise(efficacia_media = mean(efficacia_annunci, na.rm = TRUE))  # Calcola la media, ignorando i valori NA
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico a barre per la media dell'efficacia degli annunci per città
+ggplot(efficacia_summary, aes(x = reorder(city, Media), y = Media)) +
+  geom_bar(stat = "identity", fill = "steelblue", color = "black") +  # Imposta un colore fisso per le barre
+  coord_flip() +  # Ruota il grafico per migliorare la leggibilità
+  labs(
+    title = "Efficacia media degli annunci per città",  # Titolo del grafico
+    x = "Città",  # Etichetta asse X
+    y = "Efficacia media degli annunci"  # Etichetta asse Y
+  ) +
+  theme_minimal()  # Tema minimalista per un aspetto pulito
+```
+
+#### Analisi dell'efficacia degli annunci per città
+- **Bryan-College Station** ha l'efficacia media più alta (**0.15**), indicando che una maggiore percentuale degli annunci porta effettivamente a una vendita.
+- **Wichita Falls** segue con un’efficacia media di **0.13**, suggerendo un mercato relativamente attivo.
+- **Beaumont** e **Tyler** hanno valori più bassi (**0.11** e **0.09** rispettivamente), indicando che le case in vendita in queste città potrebbero richiedere più tempo o strategie di marketing più efficaci.
+
+#### Analisi della variabilità dell'efficacia
+- **Bryan-College Station** mostra una **deviazione standard più alta (0.07)** e un **valore massimo di 0.39**, suggerendo una **forte variabilità** nell’efficacia degli annunci.
+- **Beaumont, Tyler e Wichita Falls** hanno deviazioni standard più basse (**0.02 - 0.03**), indicando che l'efficacia degli annunci è più stabile e meno soggetta a fluttuazioni estreme.
+
+&nbsp;
+
+### Andamento temporale dell’efficacia
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un riepilogo statistico dell'efficacia degli annunci nel tempo (per anno e mese)
+efficacia_temporale_summary <- df_new %>%
+  group_by(year, month) %>%  # Raggruppa i dati per anno e mese
+  summarise(
+    Media = round(mean(efficacia_annunci, na.rm = TRUE), 2),  # Calcola la media, ignorando i valori NA, arrotondata a 2 decimali
+    Mediana = round(median(efficacia_annunci, na.rm = TRUE), 2),  # Calcola la mediana, ignorando i valori NA
+    Deviazione_Std = round(sd(efficacia_annunci, na.rm = TRUE), 2),  # Calcola la deviazione standard
+    Min = round(min(efficacia_annunci, na.rm = TRUE), 2),  # Trova il valore minimo
+    Max = round(max(efficacia_annunci, na.rm = TRUE), 2),  # Trova il valore massimo
+    .groups = "drop"  # Evita il warning di raggruppamento automatico
+  )
+```
+
+```{r,echo=FALSE, message=FALSE, warnign=FALSE}
+# Visualizzare la tabella
+#kable(efficacia_temporale_summary, caption = "**Riepilogo dell'Efficacia degli Annunci nel Tempo**") %>%
+#  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico di andamento temporale dell'efficacia degli annunci
+ggplot(df_new, aes(x = as.Date(paste(year, month, "01", sep = "-")), y = efficacia_annunci, color = city)) +
+  geom_smooth(se = FALSE, method = "loess", span = 0.2, formula = y ~ x) +  # Linea di tendenza smussata senza intervallo di confidenza
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +  # Mostra solo l'anno sugli assi X
+  labs(
+    title = "Andamento temporale dell'efficacia degli annunci",  # Titolo del grafico
+    x = "Anno",  # Etichetta dell'asse X
+    y = "Efficacia (%)"  # Etichetta dell'asse Y
+  ) +
+  theme_minimal() +  # Applica un tema minimalista
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))  # Centra le etichette dell'asse X
+```
+
+#### Tendenze generali nel tempo
+
+- L’efficacia degli annunci **segue un andamento stagionale** con picchi annuali evidenti, in particolare nei mesi primaverili-estivi (tra marzo e luglio).  
+- In **Bryan-College Station**, l’efficacia degli annunci è molto più variabile rispetto alle altre città, con aumenti significativi nel **2013 e 2014**, raggiungendo valori superiori al **30%**.
+- **Wichita Falls** mostra una crescita progressiva dell’efficacia con meno fluttuazioni, ma comunque con aumenti nei mesi primaverili.
+- **Beaumont e Tyler** hanno un andamento più stabile con valori inferiori rispetto alle altre città, indicando un mercato più costante e meno soggetto a variazioni improvvise.
+
+
+#### Confronto tra le città
+
+- **Bryan-College Station** è la città con la maggiore **variabilità** e i valori di picco più alti (**0.39 nel 2014**), suggerendo periodi di domanda molto elevata alternati a momenti di calo.
+- **Wichita Falls** mantiene un livello **più stabile**, con un’efficacia media compresa tra **0.10 e 0.20**, senza oscillazioni estreme.
+- **Beaumont e Tyler** mostrano curve molto simili, con oscillazioni più contenute tra **0.07 e 0.15**, indicando una stabilità nel mercato degli annunci.
+
+
+#### Implicazioni dell'analisi
+- **Stagionalità del mercato:** La domanda di immobili aumenta nei mesi primaverili ed estivi, con una contrazione nei mesi invernali.  
+- **Volatilità di Bryan-College Station:** Il mercato in questa città è particolarmente dinamico, probabilmente influenzato da fattori economici o cicli di domanda locali.  
+- **Stabilità di Beaumont e Tyler:** Queste città hanno una **minore variabilità** nell’efficacia degli annunci, indicando una domanda più costante nel tempo.  
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## 7. Analisi condizionata
+
+&nbsp;
+
+### Distribuzione del prezzo mediano per città
+
+L'analisi mira a confrontare la distribuzione del prezzo mediano delle case tra le diverse città del Texas presenti nel dataset. Per questo scopo, abbiamo utilizzato:
+
+- **Boxplot** per rappresentare graficamente la distribuzione del prezzo mediano per città, evidenziando variazioni e possibili outlier.
+- **Statistiche di sintesi**, tra cui la **media** e la **deviazione standard** del prezzo mediano per ciascuna città.
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del boxplot per la distribuzione del prezzo mediano per città con colore uniforme
+ggplot(df, aes(x = city, y = median_price)) +
+  geom_boxplot(fill = "steelblue", color = "black") +  # Imposta il riempimento in steelblue e il bordo nero
+  labs(
+    title = "Distribuzione del prezzo mediano per città",  # Titolo del grafico
+    x = "Città",  # Etichetta dell'asse X
+    y = "Prezzo mediano"  # Etichetta dell'asse Y
+  ) +
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+```{r, message=FALSE, warnign=FALSE}
+# Calcolare media e deviazione standard del prezzo mediano per città
+# Creazione di un riepilogo statistico del prezzo mediano per città
+summary_city_stats <- df %>%
+  group_by(city) %>%  # Raggruppa i dati per città
+  summarise(
+    Media_Prezzo_Mediano = round(mean(median_price, na.rm = TRUE), 0),  # Calcola la media del prezzo mediano, ignorando i valori NA e arrotondando all'intero più vicino
+    Deviazione_Standard = round(sd(median_price, na.rm = TRUE), 0)  # Calcola la deviazione standard, arrotondata all'intero più vicino
+  )
+```
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+kable(summary_city_stats, caption = "") %>%
+  kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+#### Dai risultati possiamo osservare
+
+- **Bryan-College Station** ha il prezzo mediano più alto (**157.488 dollari**) con una deviazione standard relativamente contenuta (**8.852 dollari**), indicando una distribuzione meno dispersa.
+- **Wichita Falls** ha il prezzo mediano più basso (**101.743 dollari**) ma con la deviazione standard più elevata (**11.320 dollari**), suggerendo una maggiore variabilità nei prezzi delle case.
+- **Beaumont e Tyler** hanno prezzi mediani intermedi, con **Beaumont** (**129.988 dollari**) leggermente inferiore rispetto a **Tyler** (**141.442 dollari**), e deviazioni standard simili.
+
+#### Conclusione
+- Questi dati indicano che **Bryan-College Station** è probabilmente una città con un mercato immobiliare più stabile e con prezzi più elevati, mentre **Wichita Falls** presenta una maggiore variabilità nei prezzi, il che potrebbe indicare una maggiore diversificazione nell’offerta immobiliare.
+
+&nbsp;
+
+### Distribuzione del volume totale delle vendite per città e anno
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un riepilogo del volume totale delle vendite per città e anno
+df_sales_volume <- df %>%
+  group_by(city, year) %>%  # Raggruppa i dati per città e anno
+  summarise(
+    total_volume = sum(volume, na.rm = TRUE),  # Calcola il volume totale delle vendite, ignorando i valori NA
+    .groups = "drop"  # Evita warning di raggruppamento e restituisce un dataframe non raggruppato
+  ) %>%
+  arrange(city, year, total_volume)  # Ordina i dati per città, anno e volume totale (in ordine crescente)
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+#kable(df_sales_volume, caption = "") %>%
+ # kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico dell'andamento del volume totale delle vendite per città nel tempo
+ggplot(df_sales_volume, aes(x = year, y = total_volume, color = city, group = city)) +
+  geom_line() +  # Disegna una linea per ogni città rappresentando l'andamento delle vendite nel tempo
+  labs(
+    title = "Volume totale delle vendite per città e anno",  # Titolo del grafico
+    x = "Anno",  # Etichetta dell'asse X
+    y = "Volume delle vendite (milioni di dollari)"  # Etichetta dell'asse Y
+  ) +
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+#### Crescita generale delle vendite nel tempo  
+- Il grafico mostra un aumento costante del volume totale delle vendite dal **2010 al 2014** per tutte le città considerate. Questo suggerisce una crescita del mercato immobiliare in queste aree, probabilmente dovuta a:  
+  - Fattori economici favorevoli  
+  - Aumento della domanda  
+  - Miglioramenti nelle strategie di vendita  
+
+#### Differenze tra le città  
+- **Tyler** mostra il volume totale delle vendite più alto tra le città analizzate e una crescita costante nel tempo, indicando una domanda immobiliare più forte.  
+- **Bryan-College Station** segue un andamento simile, con una crescita marcata soprattutto dal 2012 in poi.  
+- **Beaumont** mostra una crescita più moderata, con un leggero calo nel 2011 seguito da una ripresa.  
+- **Wichita Falls** ha il volume più basso di vendite e una crescita meno pronunciata rispetto alle altre città, il che potrebbe indicare una domanda più debole o un mercato più stagnante.  
+
+#### Fluttuazioni nel tempo  
+- *Beaumont* ha avuto un calo nel **2011** prima di riprendersi negli anni successivi.  
+- *Wichita Falls* mostra un andamento più stabile e con meno variazioni rispetto alle altre città, suggerendo un mercato meno dinamico.  
+- *Bryan-College Station* e *Tyler* hanno visto una crescita più consistente, segnalando che queste città potrebbero aver beneficiato di un’economia locale più forte o di fattori demografici favorevoli.  
+
+#### Considerazioni strategiche  
+- Le città con una crescita più evidente (**Tyler** e **Bryan-College Station**) potrebbero rappresentare **opportunità di investimento** più interessanti.  
+- La crescita più lenta di **Wichita Falls** suggerisce che potrebbero esserci **fattori limitanti** nel mercato immobiliare locale, come una minore domanda o meno incentivi per gli acquirenti.  
+- Per **Beaumont**, il recupero dopo il calo del **2011** potrebbe indicare che ci sono state condizioni **temporanee sfavorevoli** che successivamente si sono risolte.  
+
+&nbsp;
+
+### Numero medio di annunci attivi per città e mese
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un riepilogo del numero medio di annunci per città e mese
+df_listings <- df %>%
+  group_by(city, month) %>%  # Raggruppa i dati per città e mese
+  summarise(
+    avg_listings = mean(listings, na.rm = TRUE),  # Calcola il numero medio di annunci, ignorando i valori NA
+    .groups = "drop"  # Evita warning di raggruppamento e restituisce un dataframe non raggruppato
+  ) %>%
+  arrange(city, month, avg_listings)  # Ordina i dati per città, mese e numero medio di annunci (in ordine crescente)
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+#kable(df_listings, caption = "") %>%
+ # kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico a barre per il numero medio di annunci attivi per mese e città
+ggplot(df_listings, aes(x = month, y = avg_listings, fill = city)) +
+  geom_bar(stat = "identity", position = "dodge") +  # Crea un grafico a barre con le città affiancate per ogni mese
+  labs(
+    title = "Numero medio di annunci attivi per mese e città",  # Titolo del grafico
+    x = "Mese",  # Etichetta dell'asse X
+    y = "Annunci attivi"  # Etichetta dell'asse Y
+  ) +
+  theme_minimal() +  # Applica un tema minimalista per una grafica pulita
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Ruota le etichette dell'asse X di 45° per evitare sovrapposizioni
+```
+
+#### Distribuzione degli annunci attivi per città e mese
+
+- **Tyler** ha costantemente il numero medio più alto di annunci attivi rispetto alle altre città.
+- **Beaumont** e **Bryan-College Station** hanno una distribuzione abbastanza stabile, con valori medi inferiori rispetto a Tyler.
+- **Wichita Falls** ha il numero medio più basso di annunci attivi tra le città considerate.
+- La variazione mensile non sembra essere molto marcata, indicando una relativa stabilità nel numero di annunci nel corso dell'anno.
+
+#### Analisi dei dati tabellari
+
+- **Tyler** ha il valore medio più alto tra le città, superando costantemente i **2600 annunci attivi al mese**.
+- **Wichita Falls** ha il valore medio più basso, rimanendo sotto i **1000 annunci attivi al mese**.
+- **Beaumont** e **Bryan-College Station** si collocano in una fascia intermedia, con una media intorno ai **1500 annunci attivi al mese**.
+
+#### Tendenze e variazioni mensili
+
+- Il numero medio di annunci attivi per città mostra una certa stabilità mese per mese, con leggere variazioni stagionali.
+- Per alcune città, si nota una **leggera riduzione del numero di annunci verso dicembre**, il che potrebbe suggerire una stagionalità del mercato immobiliare, con meno inserzioni attive alla fine dell'anno.
+- **Tyler mostra una leggera decrescita negli ultimi mesi dell'anno**, passando da oltre 3000 annunci nei mesi centrali a circa 2600 a dicembre.
+- **Wichita Falls mostra un andamento simile, con una riduzione progressiva da circa 964 annunci a giugno a circa 829 a dicembre**.
+
+#### Possibili interpretazioni e strategie
+
+- **Tyler è chiaramente il mercato più attivo**, con il maggior numero di annunci. Questo potrebbe indicare una maggiore domanda e offerta di immobili rispetto alle altre città.
+- **Wichita Falls è il mercato più piccolo tra quelli analizzati**, il che potrebbe indicare un minor interesse o una minore quantità di transazioni immobiliari.
+- La **stagionalità potrebbe influenzare le strategie di vendita e marketing**: a dicembre potrebbe esserci una minore attività, quindi potrebbe essere utile per le agenzie immobiliari adattare le loro strategie di promozione durante i mesi con meno annunci.
+- **Monitorare queste tendenze** potrebbe aiutare a ottimizzare le inserzioni, magari aumentando gli sforzi pubblicitari nei mesi con meno attività per bilanciare la stagionalità.
+
+&nbsp;
+
+### Tempo medio di permanenza sul mercato
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un riepilogo dell'inventario medio (mesi di inventario) per città e anno
+df_inventory <- df %>%
+  group_by(city, year) %>%  # Raggruppa i dati per città e anno
+  summarise(
+    avg_inventory = mean(months_inventory, na.rm = TRUE),  # Calcola il numero medio di mesi di inventario, ignorando i valori NA
+    .groups = "drop"  # Evita warning di raggruppamento e restituisce un dataframe non raggruppato
+  ) %>%
+  arrange(city, year, avg_inventory)  # Ordina i dati per città, anno e inventario medio (in ordine crescente)
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+#kable(df_inventory, caption = "") %>%
+ # kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico dell'andamento dell'inventario medio (mesi di permanenza sul mercato) nel tempo
+ggplot(df_inventory, aes(x = year, y = avg_inventory, color = city, group = city)) +
+  geom_line() +  # Disegna una linea per ogni città che rappresenta l'andamento nel tempo dell'inventario medio
+  labs(
+    title = "Tempo medio di permanenza sul mercato",  # Titolo del grafico
+    x = "Anno",  # Etichetta dell'asse X
+    y = "Mesi di inventario"  # Etichetta dell'asse Y
+  ) + 
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+#### Tempo medio di permanenza sul mercato in calo
+- Il grafico mostra l'andamento del numero medio di mesi necessari per vendere le case nelle città analizzate (**Beaumont, Bryan-College Station, Tyler, Wichita Falls**) dal **2010 al 2014**.
+- Si osserva una **tendenza generale alla diminuzione** del tempo di permanenza sul mercato nel corso degli anni, il che suggerisce un **miglioramento del mercato immobiliare** in queste città.
+- Questo potrebbe essere dovuto a:
+  - **Maggiore domanda** di immobili.
+  - **Strategie di vendita più efficaci**.
+  - **Miglioramenti economici locali**.
+
+#### Differenze tra le città
+- **Tyler** ha avuto il tempo medio di inventario più alto nel 2010 e 2011, con un valore massimo di circa **13,5 mesi nel 2011**, per poi diminuire progressivamente fino a circa **8,8 mesi nel 2014**.
+- **Beaumont** mostra un trend simile ma con valori generalmente inferiori a quelli di Tyler.
+- **Bryan-College Station** registra un calo più marcato, passando da circa **9 mesi nel 2010 a meno di 4,5 mesi nel 2014**, indicando un **miglioramento molto forte della velocità di vendita**.
+- **Wichita Falls** ha un andamento più stabile, con una leggera diminuzione nel tempo di permanenza sul mercato.
+
+#### Implicazioni per il mercato immobiliare
+- Il calo nel **tempo di inventario** suggerisce che le case vengono vendute più rapidamente, il che potrebbe essere un indicatore positivo per i venditori e per l'industria immobiliare locale.
+- **Bryan-College Station** sembra aver beneficiato maggiormente di questa tendenza, con una riduzione molto significativa dei tempi di vendita.
+- Le **differenze tra città** potrebbero essere spiegate da:
+  - **Fattori economici locali**.
+  - **Variazioni nella domanda di abitazioni**.
+  - **Cambiamenti nelle strategie di marketing immobiliare**.
+
+
+&nbsp;
+
+### Prezzo medio per unità venduta
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un nuovo dataframe con la colonna 'average_price_per_sale' in dollari
+df_price <- df %>%
+  mutate(
+    # Calcola il prezzo medio per vendita
+    # volume / sales dà il prezzo medio per unità venduta in milioni,
+    # quindi moltiplichiamo per 1e6 per ottenere il valore in dollari
+    average_price_per_sale = (volume / sales) * 1e6
+  ) %>%
+  # Raggruppa i dati per anno e città per calcolare i valori medi
+  group_by(year, city) %>%
+  summarise(
+    # Calcola il prezzo medio delle vendite per ogni gruppo (anno e città)
+    # Ignora i valori NA con na.rm = TRUE
+    average_price_per_sale = mean(average_price_per_sale, na.rm = TRUE),
+    # .groups = "drop" rimuove i gruppi dopo la summarizzazione, 
+    # così il dataframe risultante non mantiene la struttura raggruppata
+    .groups = "drop"
+  ) %>%
+  ungroup()  # Assicura che il dataframe finale non sia ancora raggruppato
+
+
+# Creazione della tabella pivot
+df_price_table <- df_price %>%
+  pivot_wider(
+    names_from = city,  # Usa i valori della colonna 'city' come nomi delle nuove colonne
+    values_from = average_price_per_sale,  # Riempie le nuove colonne con i valori di 'average_price_per_sale'
+    values_fn = mean  # Se ci sono più valori per la stessa combinazione, calcola la media
+  )
+```
+
+```{r, echo=FALSE, message=FALSE, warnign=FALSE}
+# Visualizzazione della tabella con formattazione
+#kable(df_price_table, caption = "Prezzo medio per unità venduta nel tempo") %>%
+ # kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico dell'andamento del prezzo medio per unità venduta nel tempo
+ggplot(df_price, aes(x = year, y = average_price_per_sale, color = city, group = city)) +
+  geom_line() +  # Disegna una linea per ogni città rappresentando l'andamento del prezzo medio per vendita nel tempo
+  labs(
+    title = "Prezzo medio per unità venduta nel tempo",  # Titolo del grafico
+    x = "Anno",  # Etichetta dell'asse X
+    y = "Prezzo medio per vendita (dollari)"  # Etichetta dell'asse Y
+  ) +
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+#### Tendenza generale del prezzo medio per unità venduta
+
+- Si osserva una crescita del prezzo medio delle unità vendute nel tempo per **Bryan-College Station**, **Tyler** e **Wichita Falls**.  
+**Bryan-College Station** mostra l'aumento più marcato, indicando una possibile crescita del mercato immobiliare in questa città.  
+**Beaumont** presenta un trend più stabile, con un leggero calo tra il 2010 e il 2012, seguito da un aumento nel 2013 e una leggera flessione nel 2014.  
+
+#### Confronto tra le città
+
+- **Bryan-College Station** ha i **prezzi medi di vendita più alti** tra le quattro città analizzate, seguita da **Tyler**.  
+- **Wichita Falls** ha i **prezzi medi più bassi**, sebbene mostri anch'essa una crescita nel tempo.  
+- **Beaumont** si trova in una posizione intermedia, ma con meno variazione rispetto alle altre città.  
+
+#### Fluttuazioni nel tempo
+
+- Il periodo tra il **2010 e il 2012** vede una certa stabilità o **leggere flessioni** nei prezzi medi (ad esempio, **Beaumont ha un calo costante fino al 2012**).  
+- **Dal 2013 in poi**, la maggior parte delle città mostra un incremento, suggerendo una **fase di espansione** del mercato immobiliare.  
+
+#### Possibili implicazioni
+
+- La crescita più marcata di **Bryan-College Station** potrebbe indicare un **aumento della domanda di immobili** in quella zona, forse dovuto a **fattori economici, demografici o di sviluppo urbano**.  
+- La stabilità di **Beaumont** suggerisce un **mercato meno dinamico** rispetto alle altre città.  
+- L'aumento dei prezzi in **Tyler e Wichita Falls** potrebbe segnalare una **graduale crescita della domanda**, sebbene con valori assoluti inferiori rispetto a **Bryan-College Station**.  
+
+&nbsp;
+
+### Rapporto vendite / Annunci attivi
+
+```{r, message=FALSE, warnign=FALSE}
+# Creazione di un nuovo dataframe con il rapporto vendite/annunci attivi
+df_sales_ratio <- df %>%
+  mutate(sales_to_listings_ratio = sales / listings) %>%
+  select(city, year, sales_to_listings_ratio) # Selezioniamo solo le colonne utili
+
+# Visualizzazione della tabella completa con kable
+#kable(df_sales_ratio, caption = "Rapporto vendite / Annunci attivi nel tempo") %>%
+ # kable_styling(full_width = TRUE, bootstrap_options = c("striped", "hover"))
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico dell'andamento del rapporto vendite/annunci attivi nel tempo
+ggplot(df_sales_ratio, aes(x = year, y = sales_to_listings_ratio, color = city, group = city)) +
+  geom_line(linewidth = 1) +  # Usa linewidth invece di size per le linee
+  geom_point(size = 2) +  # Aggiunge punti per evidenziare i dati
+  scale_color_brewer(palette = "Dark2") +  # Migliora la distinzione tra colori
+  labs(
+    title = "Rapporto Vendite / Annunci attivi nel tempo",
+    subtitle = "Andamento nelle diverse città",
+    x = "Anno",
+    y = "Rapporto Vendite / Listings",
+    color = "Città"
+  ) +
+  theme_bw() +  # Tema più leggibile rispetto a theme_minimal()
+  theme(
+    legend.position = "bottom",  # Sposta la legenda in basso per evitare sovrapposizioni
+    axis.text.x = element_text(angle = 45, hjust = 1)  # Migliora leggibilità delle etichette sull'asse X
+  )
+```
+
+#### Variazioni tra le città  
+- Il rapporto tra vendite e annunci attivi varia significativamente tra le diverse città del Texas, suggerendo un mercato immobiliare eterogeneo.  
+- **Bryan-College Station** mostra picchi particolarmente elevati nel 2014, suggerendo una possibile crescita della domanda o una riduzione degli annunci disponibili.  
+- **Wichita Falls** presenta un andamento più stabile rispetto alle altre città, con meno variazioni estreme.  
+
+#### Trend generale  
+- Si osserva un andamento altalenante del rapporto vendite/annunci tra il 2010 e il 2014.  
+- Periodi di calo potrebbero indicare un aumento degli annunci senza un corrispettivo aumento delle vendite, segnalando un **eccesso di offerta**.  
+- Al contrario, picchi nel rapporto indicano momenti di forte domanda o una riduzione degli annunci disponibili.  
+
+#### Andamento del mercato  
+- Se gli annunci sono aumentati più delle vendite, il mercato potrebbe aver subito una **saturazione** in alcuni anni.  
+- Al contrario, una crescita nelle vendite con un numero costante o decrescente di annunci suggerirebbe un periodo di **forte domanda immobiliare**.  
+
+#### Focus su Bryan-College Station (2014)  
+- Nel 2014, Bryan-College Station mostra un rapporto molto elevato, il che potrebbe indicare un **aumento significativo della domanda** o una riduzione drastica degli annunci disponibili.  
+
+#### Confronto tra città  
+- Città come **Beaumont e Tyler** presentano un rapporto più basso e più stabile nel tempo, suggerendo un mercato con minori fluttuazioni rispetto a Bryan-College Station e Wichita Falls.  
+- Questo potrebbe indicare un mercato meno volatile e più prevedibile in termini di domanda e offerta.  
+
+#### Considerazioni finali  
+- L’analisi suggerisce che il mercato immobiliare texano **non è uniforme**: alcune città mostrano maggiore stabilità, mentre altre presentano forti variazioni nei rapporti di vendita.  
+- Il calo del rapporto vendite/annunci in alcuni anni potrebbe indicare **una crescita dell’offerta non accompagnata da un aumento proporzionale della domanda**.
+
+&nbsp;
+
+----
+
+&nbsp;
+
+## 8. Creazione di visualizzazioni con ggplot2
+
+&nbsp;
+
+### Boxplot per confrontare la distribuzione del prezzo mediano tra città
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del boxplot per la distribuzione del prezzo mediano delle case per città
+ggplot(df, aes(x = city, y = median_price, fill = city)) +
+  geom_boxplot() +  # Crea un boxplot per ogni città basato sulla distribuzione del prezzo mediano
+  labs(
+    title = "Distribuzione del prezzo mediano delle case per città",  # Titolo del grafico
+    x = "Città",  # Etichetta dell'asse X
+    y = "Prezzo mediano"  # Etichetta dell'asse Y
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Ruota le etichette dell'asse X di 45° per evitare sovrapposizioni
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+#### Asimmetria e distribuzione dei prezzi per città  
+- **Bryan-College Station** ha una distribuzione più simmetrica con pochi outlier, mentre **Wichita Falls** mostra una dispersione maggiore con possibili valori anomali in basso.  
+- La coda inferiore di Wichita Falls suggerisce che esistano case con prezzi significativamente più bassi rispetto alla media.
+
+#### Outlier e variabilità intra-città  
+- Gli outlier sopra la scatola di **Bryan-College Station** indicano che in alcuni casi i prezzi superano la fascia tipica della città, suggerendo la presenza di immobili di fascia alta.  
+- **Beaumont** mostra una distribuzione più compatta rispetto a Tyler, con meno dispersione.
+
+#### Intervalli interquartili e stabilità del mercato  
+- L'ampiezza della scatola (IQR, Interquartile Range) per ogni città indica la variazione dei prezzi:  
+  - **Bryan-College Station** ha una fascia di prezzo più ristretta rispetto a Wichita Falls, confermando che il mercato è più omogeneo e meno volatile.  
+  - **Tyler** ha un IQR simile a quello di Beaumont, ma leggermente più spostato verso l'alto.
+
+#### Confronto tra città per strategie di investimento  
+- Per un investitore, il mercato di **Bryan-College Station** potrebbe essere più stabile e meno rischioso.  
+- **Wichita Falls**, con la maggiore dispersione, potrebbe offrire opportunità di acquisto a prezzi bassi con potenziale rivalutazione.  
+- **Beaumont e Tyler** offrono mercati più bilanciati, senza forti oscillazioni nei prezzi.
+
+&nbsp;
+
+### Boxplot della distribuzione del valore totale delle vendite tra le città e gli anni
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del boxplot per la distribuzione del valore totale delle vendite tra le città e gli anni
+ggplot(df, aes(x = as.factor(year), y = volume, fill = city)) +
+  geom_boxplot() +  # Crea un boxplot per ogni anno, suddiviso per città
+  labs(
+    title = "Distribuzione del valore totale delle vendite tra le città e gli anni",  # Titolo del grafico
+    x = "Anno",  # Etichetta dell'asse X
+    y = "Volume delle vendite"  # Etichetta dell'asse Y
+  ) +
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+#### Differenze tra le città
+- **Bryan-College Station** e **Tyler** mostrano valori di vendita più elevati e una maggiore dispersione.
+- **Beaumont** e **Wichita Falls** hanno valori più contenuti e più stabili nel tempo.
+
+#### Trend nel tempo
+- Si nota un **aumento** del volume totale delle vendite negli anni successivi, specialmente per città come **Bryan-College Station** e **Tyler**.
+- **Wichita Falls** mantiene valori costanti e più bassi rispetto alle altre città.
+
+#### Presenza di outlier
+- Alcuni punti si discostano dalla distribuzione principale, suggerendo vendite eccezionalmente alte o basse.  
+- Questo può indicare eventi particolari nel mercato immobiliare di alcune città in determinati anni.
+
+#### Considerazioni Finali
+
+- Il **mercato immobiliare** in Texas mostra una crescita in alcune città più dinamiche rispetto ad altre.
+- I **volumi di vendita più elevati** in alcune città potrebbero indicare aree più appetibili per investimenti immobiliari.
+- L'**analisi della distribuzione** permette di individuare città con maggiore volatilità nei prezzi e nei volumi di vendita.
+- Questa analisi fornisce indicazioni utili agli investitori e agli operatori del mercato immobiliare per comprendere quali città hanno mostrato maggiore crescita nel tempo e dove possono emergere opportunità di investimento.
+
+
+&nbsp;
+
+### Grafico a barre sovrapposte per il totale delle vendite nei vari mesi per città
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico a barre per il totale delle vendite nei vari mesi per città
+ggplot(df, aes(x = month, y = sales, fill = city)) +
+  geom_bar(stat = "identity", position = "stack") +  # Crea un grafico a barre impilate (stacked bar chart)
+  labs(
+    title = "Totale delle vendite nei vari mesi per città",  # Titolo del grafico
+    x = "Mese",  # Etichetta dell'asse X
+    y = "Numero di vendite"  # Etichetta dell'asse Y
+  ) + 
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico a barre sovrapposte per il totale delle vendite nei vari mesi per città, suddiviso per anno
+ggplot(df, aes(x = month, y = sales, fill = city)) +
+  geom_bar(stat = "identity", position = "stack") + 
+  facet_wrap(~ year) +  # Suddivide il grafico in più pannelli distinti per anno
+  labs(
+    title = "Totale delle vendite nei vari mesi per città e anno",
+    x = "Mese",
+    y = "Numero di vendite"
+  ) +
+  theme_minimal()
+```
+
+
+#### Stagionalità nelle vendite
+- Si osserva un aumento del numero di vendite nei mesi primaverili ed estivi (da marzo a luglio), con un picco massimo attorno a maggio-giugno. Questo potrebbe indicare una stagionalità tipica del mercato immobiliare, dove le vendite aumentano in periodi più favorevoli per gli spostamenti e le transazioni immobiliari.
+
+#### Decrescita nella seconda metà dell’anno
+- Dopo il picco estivo, si nota una diminuzione graduale del numero di vendite, con un minimo nei mesi invernali (novembre-dicembre). Questo è coerente con l’andamento generale del mercato immobiliare, in cui la domanda tende a calare nei mesi freddi.
+
+#### Differenze tra città
+- **Beaumont (rosso)** sembra avere un contributo significativo alle vendite, soprattutto nei mesi di picco.
+- **Bryan-College Station (azzurro)** mostra volumi di vendita piuttosto consistenti durante tutto l'anno.
+- **Tyler (verde)** segue una tendenza simile, ma con una minore incidenza rispetto alle prime due città.
+- **Wichita Falls (viola)** ha sempre il numero più basso di vendite, indicando un mercato meno dinamico rispetto alle altre città.
+
+#### Distribuzione delle vendite tra le città
+- Le città non hanno una distribuzione uniforme nelle vendite, con alcune che contribuiscono in modo più consistente rispetto ad altre. Beaumont e Bryan-College Station sembrano essere i mercati più attivi.
+
+#### Impatti delle politiche economiche e finanziarie
+- Le fluttuazioni potrebbero anche riflettere variazioni nei tassi di interesse, nelle politiche di mutuo o nelle condizioni economiche generali.
+
+&nbsp;
+
+### Grafico normalizzato
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del grafico a barre normalizzato per il totale delle vendite nei vari mesi per città
+ggplot(df, aes(x = month, y = sales, fill = city)) +
+  geom_bar(stat = "identity", position = "fill") +  # Normalizza i dati per mostrare la proporzione delle vendite
+  labs(
+    title = "Totale delle vendite nei vari mesi per città (Normalizzato)",  # Titolo del grafico
+    x = "Mese",  # Etichetta dell'asse X
+    y = "Proporzione delle vendite"  # Etichetta dell'asse Y
+  ) + 
+  theme_minimal()  # Applica un tema minimalista per una grafica pulita
+```
+
+#### Stabilità della distribuzione percentuale tra le città
+- In ogni mese, la **composizione percentuale** delle vendite tra le quattro città è **relativamente costante**.
+- Ciò significa che, indipendentemente dal numero assoluto di vendite, la ripartizione tra le città segue un pattern simile ogni mese.
+
+#### Differenze tra città
+- **Bryan-College Station (azzurro)** sembra mantenere una quota consistente delle vendite in ogni mese, rappresentando quasi il **50%** del totale.
+- **Beaumont (rosso)** è la seconda città più rilevante, con una quota che oscilla tra **20% e 30%**.
+- **Tyler (verde)** e **Wichita Falls (viola)** hanno quote più basse ma stabili, con Wichita Falls sempre la meno significativa.
+
+&nbsp;
+
+### Line chart dell’andamento delle vendite nel tempo per città
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione di un line chart per analizzare l'andamento delle vendite nel tempo per ciascuna città
+ggplot(df, aes(x = year, y = sales, color = city, group = city)) +
+  geom_line(alpha = 0.5) +  # Aggiunge una linea per ogni città, con trasparenza per migliorare la leggibilità
+  geom_smooth(method = "lm", se = FALSE) +  # Aggiunge una retta di regressione lineare per ogni città
+  labs(
+    title = "Andamento delle vendite nel tempo per città",  # Titolo del grafico
+    x = "Anno",  # Etichetta asse X
+    y = "Numero di vendite"  # Etichetta asse Y
+  ) +
+  theme_minimal()  # Applica un tema minimale per migliorare la leggibilità
+
+
+# Creazione di un grafico a dispersione con linea di tendenza per l'andamento delle vendite nel tempo per città
+ggplot(df, aes(x = year, y = sales, color = city, group = city)) +
+  geom_point(size = 2) +  # Aggiunge punti per evidenziare i dati reali, con grandezza 2
+  geom_smooth(method = "loess", se = FALSE, linetype = "dashed") +  # Linea smussata (LOESS) per evidenziare il trend, tratteggiata
+  labs(
+    title = "Andamento delle vendite nel tempo per città",  # Titolo del grafico
+    x = "Anno",  # Etichetta asse X
+    y = "Numero di vendite",  # Etichetta asse Y
+    color = "Città"  # Etichetta della legenda
+  ) +
+  theme_minimal() +  # Applica un tema minimale per una grafica più pulita
+  theme(legend.position = "top")  # Sposta la legenda nella parte superiore del grafico
+```
+
+#### Tendenze delle vendite nel tempo
+- Alcune città mostrano un trend crescente nelle vendite immobiliari (*es. Bryan-College Station*).
+- Altre città presentano un andamento più stabile o in lieve calo (*es. Tyler e Beaumont*).
+
+####  Variazioni tra città
+- Differenze evidenti nei volumi di vendita tra le città.
+- *Bryan-College Station* ha un numero di vendite più elevato rispetto ad altre città.
+- Alcune città mostrano fluttuazioni marcate tra gli anni, indicando possibili effetti stagionali o economici.
+
+#### Andamento delle vendite e stagionalità
+- Le oscillazioni nei dati annuali potrebbero indicare variazioni stagionali.
+- Potenziali impatti di eventi economici, politiche fiscali o cambiamenti nella domanda.
+
+#### Differenze nei pattern di crescita
+- Alcune città mostrano una crescita costante, altre fluttuazioni più marcate.
+- Potrebbero esserci stati eventi specifici (es. incentivi fiscali, crisi economiche) che hanno influenzato il mercato.
+
+&nbsp;
+
+### Line chart con prezzo mediano delle case e tasso di inflazione
+
+```{r fig.width=12, fig.height=6, out.width="100%",message=FALSE, warnign=FALSE}
+# Creazione del data frame con anni e tassi di inflazione
+# FONTE: https://www.inflation.eu/it/tassi-di-inflazione/stati-uniti/inflazione-storica/cpi-inflazione-stati-uniti.aspx
+dati_inflazione <- data.frame(
+  Anno = c(2010, 2011, 2012, 2013, 2014),
+  Tasso_Inflazione = c(1.64, 3.16, 2.07, 1.47, 1.62)
+)
+
+# Unione dei dati di inflazione con il dataset principale
+df_completo <- merge(df, dati_inflazione, by.x = "year", by.y = "Anno", all.x = TRUE)
+
+
+# Creazione del grafico con doppio asse Y per confrontare il Prezzo Mediano delle Case e il Tasso di Inflazione
+ggplot(df_completo, aes(x = year)) +
+  # Linea per il Prezzo Mediano delle Case
+  geom_line(aes(y = median_price, color = "Prezzo Mediano"), linewidth = 1) +
+  # Linea tratteggiata per il Tasso di Inflazione, scalato per essere confrontabile
+  geom_line(aes(y = Tasso_Inflazione * 50000, color = "Tasso di Inflazione"), linewidth = 1, linetype = "dashed") +
+  # Configurazione degli assi Y
+  scale_y_continuous(
+    name = "Prezzo Mediano ($)",  # Etichetta per l'asse Y principale
+    sec.axis = sec_axis(~./50000, name = "Tasso di Inflazione (%)")  # Asse Y secondario con trasformazione inversa
+  ) +
+  # Aggiunta di titoli e etichette
+  labs(
+    title = "Confronto tra prezzo mediano delle case e tasso di inflazione",
+    x = "Anno",
+    color = "Variabile"
+  ) +
+  # Applicazione di un tema minimale per una migliore leggibilità
+  theme_minimal()
+```
+
+#### Andamento del tasso di inflazione
+
+- Si nota una tendenza inversa rispetto al prezzo mediano: mentre il prezzo delle case cresce tra il 2010 e il 2011, il tasso di inflazione sembra aumentare e poi diminuire dopo il 2011.
+- Il tasso di inflazione scende progressivamente tra il 2011 e il 2013, raggiungendo il valore più basso nel 2013 prima di risalire leggermente nel 2014.
+
+#### Relazione tra prezzo delle case e inflazione
+
+- Quando l'inflazione diminuisce (2011-2013), il prezzo delle case tende a stabilizzarsi o crescere moderatamente.
+- Ciò potrebbe suggerire che un'inflazione più alta incide sui costi e sulla domanda immobiliare, mentre una riduzione dell'inflazione potrebbe sostenere il mercato immobiliare.
+- Tuttavia, il legame tra inflazione e prezzo delle case potrebbe essere influenzato anche da altri fattori economici come tassi di interesse, domanda del mercato e condizioni economiche generali.
+
+#### Possibili implicazioni per il mercato immobiliare
+
+- E' utile notare che periodi di bassa inflazione potrebbero essere più favorevoli per la stabilità del mercato immobiliare.
+- Le fluttuazioni nei prezzi medi delle case suggeriscono che l'andamento non è lineare e potrebbe essere guidato da fattori economici esterni.
+
+&nbsp;
+
+### Line chart con prezzo mediano delle case e tasso medio dei mutui
+
+```{r fig.width=12, fig.height=6, out.width="100%", message=FALSE, warnign=FALSE}
+# Creazione del data frame con anni e tassi di interesse
+# FONTE: https://myhome.freddiemac.com/buying/mortgage-rates
+dati_tassi_mutui <- data.frame(
+  Anno = c(2010, 2011, 2012, 2013, 2014),
+  Tasso_Medio_Mutuo = c(4.81, 4.69, 3.66, 3.98, 4.17)
+)
+
+# Unione dei dati dei tassi di mutuo con il dataset principale
+df_completo2 <- merge(df, dati_tassi_mutui, by.x = "year", by.y = "Anno", all.x = TRUE)
+
+# Creazione del grafico con doppio asse Y per confrontare il Prezzo Mediano delle Case e il Tasso Medio dei Mutui
+ggplot(df_completo2, aes(x = year)) +
+  # Linea per il Prezzo Mediano delle Case
+  geom_line(aes(y = median_price, color = "Prezzo Mediano"), linewidth = 1) +
+  # Linea tratteggiata per il Tasso Medio del Mutuo, scalato per essere confrontabile
+  geom_line(aes(y = Tasso_Medio_Mutuo * 50000, color = "Tasso Medio Mutuo"), linewidth = 1, linetype = "dashed") +
+  # Configurazione degli assi Y
+  scale_y_continuous(
+    name = "Prezzo Mediano ($)",  # Etichetta per l'asse Y principale
+    sec.axis = sec_axis(~./50000, name = "Tasso Medio Mutuo (%)")  # Asse Y secondario con trasformazione inversa
+  ) +
+  # Aggiunta di titoli e etichette
+  labs(
+    title = "Confronto tra prezzo mediano delle case e tasso medio dei mutui",
+    x = "Anno",
+    color = "Variabile"
+  ) +
+  # Applicazione di un tema minimale per una migliore leggibilità
+  theme_minimal()
+```
+
+#### Andamento del tasso medio dei mutui
+
+- Si osserva una tendenza decrescente del tasso medio dei mutui dal 2010 al 2012.
+- Dopo il 2012, il tasso inizia a risalire leggermente.
+
+#### Possibile relazione tra le due variabili
+
+- La diminuzione del tasso medio dei mutui fino al 2012 potrebbe aver favorito l'acquisto di case, sostenendo la crescita dei prezzi medi.
+- Dal 2012 in poi, il tasso dei mutui inizia a risalire leggermente, mentre il prezzo mediano continua comunque a crescere, suggerendo una domanda ancora solida nel mercato immobiliare del Texas.
+
+#### Considerazioni
+
+- Il calo dei tassi di interesse può aver incentivato l'acquisto di immobili nei primi anni, contribuendo a un aumento dei prezzi.
+- Nonostante l'aumento del tasso dal 2012, il prezzo mediano delle case continua a salire, il che potrebbe indicare altri fattori di mercato favorevoli, come una domanda crescente o una riduzione dell'offerta.
+
+&nbsp;
+
+---
+
+&nbsp;
+
+## 9. Conclusioni
+
+&nbsp;
+
+Il mercato immobiliare in Texas presenta una chiara tendenza alla crescita, con variazioni stagionali e anomalie in alcuni anni. Tuttavia, oltre ai fattori interni come la stagionalità delle vendite e l'efficacia delle strategie di marketing, è fondamentale considerare anche il ruolo dei tassi di interesse e dell'inflazione nell'andamento del settore.
+
+#### Ruolo dei tassi di interesse
+
+L'analisi dei dati mostra che, mentre un abbassamento dei tassi di interesse favorisce l'incremento delle vendite immobiliari, altri fattori concorrono a determinare le dinamiche del mercato:
+
+- La crescita dei prezzi delle case dopo il 2012, nonostante un leggero rialzo dei tassi di interesse, suggerisce che la domanda immobiliare ha continuato a superare l'offerta disponibile.
+- L'influenza dei tassi di interesse sulle vendite può variare in base alla città: le grandi città mostrano una maggiore stabilità, mentre le città più piccole possono essere più sensibili alle variazioni dei tassi, risultando in mercati più dinamici e speculativi.
+- Il rapporto tra il numero di annunci e le vendite effettive può essere influenzato anche dalla politica monetaria, con periodi di bassi tassi che spingono a una maggiore attività di compravendita.
+
+#### Inflazione e prezzi immobiliari
+
+L'analisi dell'andamento dei prezzi delle case in relazione all'inflazione tra il 2011 e il 2013 evidenzia che:
+
+- Una riduzione dell'inflazione può supportare una crescita più stabile del mercato, incentivando investimenti immobiliari.
+- Tuttavia, l'inflazione non è l'unico fattore determinante: la domanda abitativa, la crescita demografica e i tassi di interesse influenzano in maniera più articolata l'andamento dei prezzi.
+- In alcune città, un elevato numero di annunci immobiliari non si traduce direttamente in un aumento delle vendite, suggerendo che, oltre ai fattori macroeconomici, siano necessari adeguamenti nei prezzi e nelle strategie di marketing.
+
+#### Implicazioni per il futuro
+
+- Periodi caratterizzati da bassa inflazione e tassi di interesse contenuti possono rappresentare finestre strategiche per investimenti nel mercato immobiliare.
+- La resilienza del mercato texano, con prezzi in crescita anche dopo il 2012, suggerisce che la domanda rimane forte, indipendentemente da lievi variazioni nei tassi di interesse.
+- Per ottimizzare le strategie di vendita e di investimento, è fondamentale combinare l'analisi delle variabili macroeconomiche con dati più granulari, come la stagionalità delle vendite e l'efficacia delle inserzioni.
+
+&nbsp;
+
+## 10. Strategie
+
+&nbsp;
+
+---
+
+&nbsp;
+
+#### Analisi della domanda immobiliare in relazione ai tassi di interesse
+L'andamento dei tassi di interesse ha influenzato significativamente la domanda di immobili in Texas. Fino al 2012, la riduzione dei tassi ha probabilmente incentivato l’acquisto di case, determinando un aumento del prezzo mediano. In questo contesto, **le strategie di vendita dovrebbero essere più aggressive nei periodi di tassi in calo**, sfruttando finanziamenti agevolati come leva di marketing.
+
+Dopo il 2012, nonostante un leggero aumento dei tassi, il mercato ha mantenuto una crescita costante, suggerendo che la domanda non fosse più esclusivamente legata ai costi finanziari, ma anche ad altri fattori come la disponibilità limitata di immobili e il miglioramento della qualità abitativa. **Le strategie pubblicitarie dovrebbero quindi focalizzarsi su elementi distintivi degli immobili piuttosto che solo su incentivi economici.**
+
+&nbsp;
+
+#### Ottimizzazione delle strategie di marketing per città
+L'analisi del rapporto tra annunci e vendite effettive suggerisce la necessità di adattare le strategie di marketing in base alla città di riferimento. Alcuni esempi:
+
+- **Bryan-College Station**: Un mercato dinamico che richiede strategie di massimizzazione della visibilità degli annunci, sfruttando la stagionalità per concentrare le campagne nei periodi di maggiore domanda.
+- **Wichita Falls**: Un mercato più stabile, dove strategie conservative e basate su relazioni a lungo termine con i clienti possono risultare più efficaci.
+
+L'integrazione con i tassi di interesse indica che città con **mercati dinamici** potrebbero rispondere meglio a **campagne promozionali basate su mutui agevolati**, mentre in città più **stabili** sarebbe più vantaggioso **puntare sulla solidità dell'investimento immobiliare**.
+
+&nbsp;
+
+#### Tempistica delle inserzioni e stagionalità
+Le vendite immobiliari mostrano una chiara stagionalità, con picchi nei mesi estivi. Questo suggerisce che:
+
+- **Le inserzioni dovrebbero aumentare in primavera per massimizzare le vendite durante il periodo di picco.**
+- **Le strategie di marketing dovrebbero essere adattate stagionalmente, monitorando le fluttuazioni della domanda.**
+
+Dal punto di vista macroeconomico, durante periodi di bassa inflazione, la stabilità dei prezzi potrebbe incentivare gli acquisti, mentre nei periodi di alta inflazione, strategie di sconti o incentivi sui mutui potrebbero risultare più efficaci.
+
+&nbsp;
+
+#### Gestione dei prezzi e degli annunci
+L'analisi ha evidenziato che in alcune città un elevato numero di annunci non corrisponde necessariamente a un alto volume di vendite. Per questo motivo, è fondamentale:
+
+- Analizzare i prezzi medi di vendita e la loro distribuzione per città.
+- Ottimizzare le strategie pubblicitarie per migliorare la conversione degli annunci.
+- Offrire incentivi o sconti per immobili invenduti da lungo tempo, al fine di ridurre l’inventario stagnante.
+
+**In un contesto di tassi di interesse in crescita, enfatizzare la qualità degli immobili e il valore di mercato potrebbe risultare una strategia più efficace rispetto alla semplice leva finanziaria.**
+
+&nbsp;
+
+#### Diversificazione degli investimenti e posizionamento del mercato
+L'eterogeneità del mercato immobiliare texano suggerisce che una diversificazione degli investimenti in diverse città potrebbe ridurre il rischio e massimizzare il rendimento. Un approccio strategico potrebbe essere:
+
+- **Investire in città con mercati più stabili**, come Bryan-College Station, dove i prezzi sono più alti ma meno volatili.
+- **Sfruttare il potenziale di crescita di città più economiche**, come Wichita Falls, dove la domanda potrebbe aumentare nel lungo periodo.
+
+L’analisi dell’inflazione indica che in periodi di crescita inflazionaria, strategie di posizionamento mirate (ad esempio, presentare l’investimento immobiliare come protezione contro la svalutazione della moneta) potrebbero attrarre investitori alla ricerca di stabilità.
+
+&nbsp;
+
+#### Monitoraggio continuo del mercato e ottimizzazione delle inserzioni
+Poiché il mercato immobiliare è dinamico e soggetto a cambiamenti continui, è essenziale:
+
+- Monitorare costantemente le tendenze di mercato, i prezzi e le vendite.
+- Adottare strategie di inserzioni personalizzate, differenziando tra investitori e acquirenti di prima casa per migliorare il tasso di conversione.
+- Utilizzare strumenti di analisi dei dati e visualizzazione per identificare rapidamente opportunità e problematiche nel mercato.
+
+&nbsp;
+
+&nbsp;
